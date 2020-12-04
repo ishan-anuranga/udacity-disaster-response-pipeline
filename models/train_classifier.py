@@ -27,11 +27,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import fbeta_score, make_scorer
-from sklearn.ensemble import GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.ensemble import GradientBoostingClassifier, AdaBoostClassifier, RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 from sklearn.multioutput import MultiOutputClassifier
-from starting_verb_extractor import StartingVerbExtractor
 
 def load_data(database_filepath):
     """
@@ -80,12 +79,6 @@ def tokenize(text):
     for url in detected_urls:
         text = text.replace(url, "urlplaceholder")
         
-    # Remove user handles
-    user_handle_regex = '@[^\s]+'
-    detected_user_handles = re.findall(user_handle_regex, text)
-    for user_handle in user_handle_regex:
-        text = text.replace(user_handle, '')
-        
     tokens = word_tokenize(text)
     lemmatizer = WordNetLemmatizer()
     
@@ -115,7 +108,7 @@ def build_pipeline():
             
         ])),
 
-        ('clf', MultiOutputClassifier(AdaBoostClassifier()))
+        ('clf', MultiOutputClassifier(RandomForestClassifier()))
     ])
 
     return pipeline
@@ -124,9 +117,10 @@ def build_model():
     pipeline = build_pipeline()
     
     parameters = {
-        'clf__estimator__learning_rate': [0.001, 0.01],
-        'clf__estimator__n_estimators': [10, 20]
-             }
+        'clf__estimator__n_estimators': [50, 100],
+        'clf__estimator__min_samples_split': [2, 3, 4],
+        'clf__estimator__criterion': ['entropy', 'gini']
+    }
     
     cv = GridSearchCV(pipeline, param_grid=parameters)
     
@@ -144,7 +138,7 @@ def evaluate_model(model, X_test, Y_test, category_names):
         category_names -> Target names
     """
     y_pred = model.predict(X_test)
-    print(classification_report(Y_test.values, y_pred, target_names=y.columns.values))
+    print(classification_report(Y_test.values, y_pred, target_names=category_names))
 
 
 def save_model(model, model_filepath):
@@ -158,7 +152,7 @@ def save_model(model, model_filepath):
         model_filepath -> Destination path to save .pkl file
     
     """
-    pickle.dump(pipeline, open(pickle_filepath, 'wb'))
+    pickle.dump(model, open(model_filepath, 'wb'))
 
 
 def main():
